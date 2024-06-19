@@ -1,0 +1,81 @@
+\documentclass{article}
+
+% Language setting
+% Replace `english' with e.g. `spanish' to change the document language
+\usepackage[english]{babel}
+
+% Set page size and margins
+% Replace `letterpaper' with `a4paper' for UK/EU standard size
+\usepackage[letterpaper,top=2cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+
+% Useful packages
+\usepackage{amsmath}
+\usepackage{amssymb} % Add this line
+\usepackage{graphicx}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+
+\title{Your Paper}
+\author{You}
+
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Your abstract.
+\end{abstract}
+
+\section{Introduction}
+Year three project on conformal techniques for time series regression problems.
+
+
+
+
+\section{Papers which I have looked at}
+
+\subsection{List of Papers}
+
+
+\subsection{Classic method (i.i.d.) data}
+To introduce the problem we are dealing with consider a regression problem on a series of data with the useful property that the data is exchangeable, for example the number of nuclei which decay in a given day for a given isotope. We are given a series of data $\{(X_t, Y_t), \; 1\leq t \leq T\}$ with $X_t$ being a covariate and $Y_t \in \mathbb{R}$ being the corresponding outcome.
+We are given the challenge of 
+
+
+
+
+%%%% What's the method (explanation)
+
+
+
+
+
+
+\subsubsection{Adaptive Conformal Inference}
+\cite{gibbs2021adaptive}
+
+Have implemented the method used in the paper, I have recreated the results from the paper on my own stock data. It performs well, better on larger alpha when compared to a non adaptive method. There are a few interesting quirks with the effectiveness at different alpha levels. 
+
+Trying on synthetic data which is so far Brownian motion, with different scales. Seems very robust in this sense.
+
+Tried something where I tried to add a momentum affect to the different weights, but this made the distances larger and the predictions larger. This makes sense as you are not trying to maximise your coverage but get the coverage at a very specific correct level as to where it covers the amount which you are looking for.
+
+\subsubsection{Conformal Inference for Online Prediction with Arbitrary Distribution Shifts.}
+\cite{gibbs2024conformal}
+
+This method is an extension of ACI, it points out two main criticisms: the first that you need a very good understanding of the distribution to be able to choose gamma and secondly that the technique is incentivised to correct its mistakes. I have observed this when plotting the coverage as it osccilates around the mean with a large period.
+
+The technique involves having a set of candidate gammas, which you will have the ability to swap between, you run the traditional ACI method with each of the gammas in parallel and the paper devises a method to assign propability to each which you then sample from. This method removes gamma but introduces two new constants, mu and nu, which I find it hard to scale properly. 
+
+\subsubsection{Subset of Papers}
+\begin{itemize}
+    \item Paper 1
+    \item Paper 2
+    \item Paper 3
+\end{itemize}
+
+\bibliographystyle{alpha}
+\bibliography{sample}
+
+\end{document}
+
+In text the subset symbol is 
