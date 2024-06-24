@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+from random import randint
 
 
 class AdaptiveCP:
@@ -256,13 +257,13 @@ class ACP_plots:
         plt.show()
     
     @staticmethod
-    def compare_two(method1, method2):
+    def compare_two(method1, method2, figsize: tuple[int] =(10, 5)):
         model1 = method1['model']
         model2 = method2['model']
 
         interval_size = method1['interval_size']
 
-        fig, axs = plt.subplots(2, 2, figsize=(20, 10))
+        fig, axs = plt.subplots(2, 2, figsize=figsize)
         fig.suptitle('Comparison between '+ model1 + ' and ' + model2)
 
         axs[0][0].plot(1 - pd.Series(method1['error_t_list']).rolling(interval_size).mean(), label=model1)
@@ -295,13 +296,13 @@ class ACP_plots:
         plt.show()
 
     @staticmethod
-    def compare_many(list_of_methods):
+    def compare_many(list_of_methods, figsize: tuple[int] =(10, 5)):
         interval_size = list_of_methods[0]['interval_size']
 
         # Create a 2x2 grid
         gs = gridspec.GridSpec(3, 2)
 
-        fig = plt.figure(figsize=(20, 10))
+        fig = plt.figure(figsize=figsize)
         fig.suptitle('Comparison between different methods')
 
         # Create the subplots
@@ -310,7 +311,7 @@ class ACP_plots:
         ax3 = plt.subplot(gs[1, 1])  
         ax4 = plt.subplot(gs[2, :])  
 
-        colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
+        colors = ['blue', 'orange', 'red', 'cyan', 'magenta']
         for i, method in enumerate(list_of_methods):
             cr = colors[i % len(colors)]
 
@@ -325,7 +326,6 @@ class ACP_plots:
             ax3.axhline(method['average_prediction_interval'], color=cr, label=method['model'])
 
             ax4.plot(method_distance, color=cr, label=method['model'])
-
 
         ax1.axhline(1 - method['coverage_target'], color='black', linestyle=':')
         ax1.legend()
@@ -343,6 +343,69 @@ class ACP_plots:
 
 
         plt.show()
+
+
+class ACP_data:
+    def __init__(self, datapoints: int,  max_seq_length: int = 500, dist_shifts : list[tuple] = None,  random_seq_length: bool = True, trend_seq: float = 0.5):
+        self.datapoints = datapoints
+        self.max_seq_length = max_seq_length
+        self.random_seq_length = random_seq_length
+        self.trend_seq = trend_seq
+        
+        if dist_shifts is None:
+            self.random_dist_shifts = 1
+        else:
+            self.random_dist_shifts = 0
+            self.dist_shifts = dist_shifts
+
+
+    def _create_timeseries(self, length, given_dist_shifts):
+        # Generates the absolute value of difference between timestep
+        n = length//len(given_dist_shifts)
+        m = length%len(given_dist_shifts)
+
+        final = np.array([])
+        
+        for i in range(len(given_dist_shifts)-1):
+            Y = abs(np.random.normal(given_dist_shifts[i][0], given_dist_shifts[i][1], n))
+            final = np.concatenate((final, Y))
+        
+        final = np.concatenate((final, abs(np.random.normal(given_dist_shifts[-1][0], given_dist_shifts[-1][1], n+m)))) 
+        
+        return final + 0.3*np.roll(final, 1)
+
+    def generate(self) -> list[tuple]:
+        generated_data = []
+        max_mean, max_var = 10, 10  # Later will make this user defined.
+
+        # This control the upward or negatice skew of the data.
+        pdist = [1- self.trend_seq, self.trend_seq]
+ 
+        for _ in range(self.datapoints):
+            if self.random_seq_length:             
+                # Up to user to make seq_lenght // 3 greater then lookback window.
+                length = randint(self.max_seq_length//3, self.max_seq_length)
+            else:
+                length = self.max_seq_length
+            
+            # Direciton of the time series
+            X =  np.random.choice([-1, 1], size=length, p=pdist)
+            
+            if self.random_dist_shifts:
+                # Randomly generating the distribution shifts.
+                dist_shift = [(randint(-max_mean, max_mean), randint(0, max_var)) for __ in range(randint(1, randint(1, length//50)))]
+            else:
+                dist_shift = self.dist_shifts
+            
+            Y = self._create_timeseries(length, dist_shift)
+            T = np.cumsum(X*Y)
+
+            input_data, labels_data = T[:-1], T[1:]
+            generated_data.append((input_data, labels_data))
+
+        return generated_data
+
+
 
 
 if __name__ == '__main__':
