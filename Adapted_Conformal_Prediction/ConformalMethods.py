@@ -27,8 +27,6 @@ class AdaptiveCP:
         
         return negative_v, positve_v
     
-
-    
     @staticmethod
     def err_t(y_t, C_t_interval):
         if C_t_interval[0] < y_t < C_t_interval[1]:
@@ -142,7 +140,7 @@ class AdaptiveCP:
         B_t_list = []
         
         sigma = 1/(2*self.interval_size)
-        nu = np.sqrt(3/50 * (np.log(len(gamma_candidates)*50) + 2)/((1-self.coverage_target)**2 * self.coverage_target**2))
+        nu = np.sqrt((3/self.interval_size) * (np.log(len(gamma_candidates)*self.interval_size) + 2)/((1-self.coverage_target)**2 * self.coverage_target**2))
        
         # Calculating the scores at each time step
         All_scores = self.score_function(xpred, y)
@@ -167,6 +165,7 @@ class AdaptiveCP:
             # TIME FRONTIER -------
 
             # Smallest interval containg the true value.
+            B_t = 0.5       # To avoid unbound local error will assign B_t a value first
             for possi in np.linspace(1, 0, 1000):
                 Cpossi= self.C_t(possi, All_scores, xpred[i], i)
                 if Cpossi[0] < y[i] < Cpossi[1]:
@@ -207,6 +206,8 @@ class AdaptiveCP:
             'B_t_list': B_t_list,
             'interval_size': self.interval_size ,
         }
+    
+    
         
 
 class ACP_plots:
@@ -266,11 +267,11 @@ class ACP_plots:
         coverage = data['realised_interval_coverage']
         interval_size = data['interval_size']
 
-        if 'alpha_t_list' in data:
+        fourthplot = False
+        if 'alpha_t_list' in data and 'B_t_list' in data:
             alpha_list = data['alpha_t_list']
-
-        if 'B_t_list' in data:
             B_t_list = data['B_t_list']
+            fourthplot = True
 
         fig, axs = plt.subplots(2, 2, figsize=(20, 10))
         fig.suptitle('Adaptive Conformal Prediction for '+ data['model'])
@@ -290,10 +291,11 @@ class ACP_plots:
         axs[1][0].legend()
         axs[1][0].set_title('Distance between upper and lower bounds')
 
-        axs[1][1].plot(alpha_list,label='our alpha')
-        axs[1][1].plot(B_t_list, label='alpha*')
-        axs[1][1].legend()
-        axs[1][1].set_title('Alpha_t and B_t')
+        if fourthplot:
+            axs[1][1].plot(alpha_list,label='our alpha')
+            axs[1][1].plot(B_t_list, label='alpha*')
+            axs[1][1].legend()
+            axs[1][1].set_title('Alpha_t and B_t')
 
         plt.show()
 
