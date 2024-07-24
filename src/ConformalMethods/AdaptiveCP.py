@@ -175,13 +175,21 @@ class AdaptiveCP:
 
             # TIME FRONTIER -------
 
-            # Smallest interval containg the true value.
-            B_t = 0.5       # To avoid unbound local error will assign B_t a value first
-            for possi in np.linspace(1, 0, 1000):
-                Cpossi= self.C_t(possi, All_scores, xpred[i], i)
+            # Smallest interval containg the true value. Found using binary search.
+            low, high = 0, 999 
+            possibilities = np.linspace(0, 1, 1000) # as 1 - 
+
+            B_t = 1
+            while low <= high:
+                mid = (high + low) // 2
+                possi = possibilities[mid]
+                Cpossi = self.C_t(possi, All_scores, xpred[i], i, custom_interval)
+
                 if Cpossi[0] < y[i] < Cpossi[1]:
                     B_t = possi
-                    break
+                    low = mid + 1
+                else:
+                    high = mid - 1
             
             B_t_list.append(B_t)
             
@@ -307,6 +315,7 @@ class AdaptiveCP:
             
             # Create the mass distribution for each head
             Wt = interval_weights.sum()
+
             interval_probabilites = interval_weights/Wt
         
             try:
@@ -415,12 +424,22 @@ class AdaptiveCP:
             # TIME FRONTIER -------
 
             # Smallest interval containg the true value.
-            B_t = 0.5       # To avoid unbound local error will assign B_t a value first
-            for possi in np.linspace(1, 0, 1000):
-                Cpossi= self.C_t(possi, All_scores, xpred[i], i)
+            low, high = 0, 999 
+            possibilities = np.linspace(0, 1, 1000) # as 1 - 
+
+            B_t = 1
+            while low <= high:
+                mid = (high + low) // 2
+                possi = possibilities[mid]
+                Cpossi = self.C_t(possi, All_scores, xpred[i], i, custom_interval)
+
                 if Cpossi[0] < y[i] < Cpossi[1]:
                     B_t = possi
-                    break
+                    low = mid + 1
+                else:
+                    high = mid - 1
+            
+            B_t_list.append(B_t)
             
             B_t_list.append(B_t)
             
