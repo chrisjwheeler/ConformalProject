@@ -7,3 +7,7 @@ logs/
 
 checkpoints/
 *.pkl
+
+*.txt
+
+data/

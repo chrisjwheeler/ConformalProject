@@ -227,95 +227,95 @@ class ACP_plots:
 
         plt.show()
 
-@staticmethod
-def AwDT_plot(data, dist: tuple, comparison = False):
-    y = dist[1]
-    error_list = data['error_t_list']
-    conformal_sets = data['conformal_sets']
-    coverage = data['realised_interval_coverage']
-    interval_size = data['interval_size']
-    interval_candidates = data['interval_candidates']
-    average_prediction_interval = data['average_prediction_interval']
+    @staticmethod
+    def AwDT_plot(data, dist: tuple, comparison = False):
+        y = dist[1]
+        error_list = data['error_t_list']
+        conformal_sets = data['conformal_sets']
+        coverage = data['realised_interval_coverage']
+        interval_size = data['interval_size']
+        interval_candidates = data['interval_candidates']
+        average_prediction_interval = data['average_prediction_interval']
 
-    chosen_interval_index  = data['chosen_interval_index']
-    start_point = data['start_point']
+        chosen_interval_index  = data['chosen_interval_index']
+        start_point = data['start_point']
 
-    if comparison:
-        ACP = AdaptiveCP(data['coverage_target'])
-        Dt_data = ACP.DtACI(dist, custom_interval=max(interval_candidates))
-        ACI_data = ACP.ACI(dist, 0.05)
+        if comparison:
+            ACP = AdaptiveCP(data['coverage_target'])
+            Dt_data = ACP.DtACI(dist, custom_interval=max(interval_candidates))
+            ACI_data = ACP.ACI(dist, 0.05)
 
-    fig = plt.figure(figsize=(30, 20))
-    gs = gridspec.GridSpec(5, 2, figure=fig)
+        fig = plt.figure(figsize=(30, 20))
+        gs = gridspec.GridSpec(5, 2, figure=fig)
 
-    # Realised Coverage
-    ax1 = fig.add_subplot(gs[0, :])
-    ax1.plot(1 - pd.Series(error_list).rolling(interval_size).mean(), label='AwAci', color='b')
-    ax1.axhline(coverage, color='b', linestyle='--')
-    ax1.set_xlim(min(interval_candidates), len(y) - start_point)
-    ax1.set_title('Realised Coverage')
+        # Realised Coverage
+        ax1 = fig.add_subplot(gs[0, :])
+        ax1.plot(1 - pd.Series(error_list).rolling(interval_size).mean(), label='AwAci', color='b')
+        ax1.axhline(coverage, color='b', linestyle='--')
+        ax1.set_xlim(min(interval_candidates), len(y) - start_point)
+        ax1.set_title('Realised Coverage')
 
-    # Distance between upper and lower bounds
-    ax2 = fig.add_subplot(gs[1, :])
-    diff = [ele[1]-ele[0] for ele in conformal_sets]
-    ax2.plot(diff, label='Distance')
-    ax2.axhline(np.mean(diff), color='r', linestyle='--')
-    ax2.set_xlim(min(interval_candidates), len(y) - start_point)
-    ax2.set_ylim(bottom=0)
-    ax2.set_title('Distance between upper and lower bounds')
+        # Distance between upper and lower bounds
+        ax2 = fig.add_subplot(gs[1, :])
+        diff = [ele[1]-ele[0] for ele in conformal_sets]
+        ax2.plot(diff, label='Distance')
+        ax2.axhline(np.mean(diff), color='r', linestyle='--')
+        ax2.set_xlim(min(interval_candidates), len(y) - start_point)
+        ax2.set_ylim(bottom=0)
+        ax2.set_title('Distance between upper and lower bounds')
 
-    # Conformal sets
-    ax3 = fig.add_subplot(gs[2:4, :])
-    lower, upper = [ele[0] for ele in conformal_sets], [ele[1] for ele in conformal_sets]
-    ax3.plot(lower, label='Lower')
-    ax3.plot(upper, label='Upper')
-    ax3.plot(y[start_point:])
-    ax3.set_title('Conformal sets')
-    ax3.set_ylim(bottom=np.percentile(lower, 2.5), top=np.percentile(upper, 97.5))
-    ax3.set_xlim(0, len(y) - start_point)
+        # Conformal sets
+        ax3 = fig.add_subplot(gs[2:4, :])
+        lower, upper = [ele[0] for ele in conformal_sets], [ele[1] for ele in conformal_sets]
+        ax3.plot(lower, label='Lower')
+        ax3.plot(upper, label='Upper')
+        ax3.plot(y[start_point:])
+        ax3.set_title('Conformal sets')
+        ax3.set_ylim(bottom=np.percentile(lower, 2.5), top=np.percentile(upper, 97.5))
+        ax3.set_xlim(0, len(y) - start_point)
 
-    ax4 = fig.add_subplot(gs[4,0])
-    ax4.plot(chosen_interval_index,label='chosen_interval_index')
-    ax4.set_title('Chosen Interval')
+        ax4 = fig.add_subplot(gs[4,0])
+        ax4.plot(chosen_interval_index,label='chosen_interval_index')
+        ax4.set_title('Chosen Interval')
 
-    ax5 = fig.add_subplot(gs[4,1])
-    ax5.axhline(average_prediction_interval, label='AwAci')
+        ax5 = fig.add_subplot(gs[4,1])
+        ax5.axhline(average_prediction_interval, label='AwAci')
 
-    if comparison:
-        # Realised Coverage comparison
-        comparison_error_list = Dt_data['error_t_list']
-        comparison_coverage = Dt_data['realised_interval_coverage']
-        comparison_prediciton_interval = Dt_data['average_prediction_interval']
+        if comparison:
+            # Realised Coverage comparison
+            comparison_error_list = Dt_data['error_t_list']
+            comparison_coverage = Dt_data['realised_interval_coverage']
+            comparison_prediciton_interval = Dt_data['average_prediction_interval']
 
-        ax1.plot(1 - pd.Series(comparison_error_list).rolling(interval_size).mean(), linestyle='--', label='DtAci')
-        ax1.axhline(comparison_coverage, color='g', linestyle=':')
+            ax1.plot(1 - pd.Series(comparison_error_list).rolling(interval_size).mean(), linestyle='--', label='DtAci')
+            ax1.axhline(comparison_coverage, color='g', linestyle=':')
 
-        # Distance between upper and lower bounds comparison
-        comparison_conformal_sets = Dt_data['conformal_sets']
-        comparison_diff = [ele[1]-ele[0] for ele in comparison_conformal_sets]
-        ax2.plot(comparison_diff, label='Comparison Distance', linestyle='--')
-        ax2.axhline(np.mean(comparison_diff), color='g', linestyle=':', label='comparison average' )
+            # Distance between upper and lower bounds comparison
+            comparison_conformal_sets = Dt_data['conformal_sets']
+            comparison_diff = [ele[1]-ele[0] for ele in comparison_conformal_sets]
+            ax2.plot(comparison_diff, label='Comparison Distance', linestyle='--')
+            ax2.axhline(np.mean(comparison_diff), color='g', linestyle=':', label='comparison average' )
 
-        # Conformal sets comparison
-        comparison_lower, comparison_upper = [ele[0] for ele in comparison_conformal_sets], [ele[1] for ele in comparison_conformal_sets]
-        ax3.plot(comparison_lower, label='Comparison Lower', linestyle='--')
-        ax3.plot(comparison_upper, label='Comparison Upper', linestyle='--')
+            # Conformal sets comparison
+            comparison_lower, comparison_upper = [ele[0] for ele in comparison_conformal_sets], [ele[1] for ele in comparison_conformal_sets]
+            ax3.plot(comparison_lower, label='Comparison Lower', linestyle='--')
+            ax3.plot(comparison_upper, label='Comparison Upper', linestyle='--')
 
-        ax5.axhline(comparison_prediciton_interval, color='g', label='DtACI')
+            ax5.axhline(comparison_prediciton_interval, color='g', label='DtACI')
 
-        aci_error_list = ACI_data['error_t_list']
-        aci_coverage = ACI_data['realised_interval_coverage']
-        aci_prediction_interval = ACI_data['average_prediction_interval']
-        
-        ax1.plot(1 - pd.Series(aci_error_list).rolling(interval_size).mean(), linestyle='-.', label='ACI Error')
-        ax1.axhline(aci_coverage, color='r', linestyle='-.', label='ACI Coverage')
-        
-        ax5.axhline(aci_prediction_interval, color='r', label='ACI Prediction Interval')
+            aci_error_list = ACI_data['error_t_list']
+            aci_coverage = ACI_data['realised_interval_coverage']
+            aci_prediction_interval = ACI_data['average_prediction_interval']
+            
+            ax1.plot(1 - pd.Series(aci_error_list).rolling(interval_size).mean(), linestyle='-.', label='ACI Error')
+            ax1.axhline(aci_coverage, color='r', linestyle='-.', label='ACI Coverage')
+            
+            ax5.axhline(aci_prediction_interval, color='r', label='ACI Prediction Interval')
 
-    ax1.legend()
-    ax2.legend()
-    ax3.legend()
-    ax4.legend()
-    ax5.legend()
+        ax1.legend()
+        ax2.legend()
+        ax3.legend()
+        ax4.legend()
+        ax5.legend()
 
-    plt.show()
+        plt.show()

@@ -219,11 +219,16 @@ class AdaptiveCP:
         }
     
     def set_loss(self, optimal_set, given_set):
-         val = optimal_set - given_set
-         if val < 0:
-              return (self.coverage_target) * (-1* val)
-         else:
-              return (1 - self.coverage_target) * val
+        # If the optimal set is somehow 0, then we will return the given set.
+        if optimal_set == 0:
+            return 0
+        else:
+            val = (optimal_set - given_set) / optimal_set
+         
+        if val < 0:
+            return (self.coverage_target) * (-1* val)
+        else:
+            return (1 - self.coverage_target) * val
     
     def set_loss_vectorize(self):
          return np.vectorize(self.set_loss)
@@ -325,11 +330,11 @@ class AdaptiveCP:
             err_t_list.append(err_true)
 
             # Computing the conformal set radi. 
-            optimal_set_radius = xpred[i_count] - xpred[i_count-1]
+            optimal_set_radius = abs(y[i_count] - y[i_count-1]) 
             head_set_radius = list(map(lambda Cset: (Cset[1] - Cset[0])/2, head_sets)) #(chosen_set[1] - chosen_set[0])/2
 
             optimal_radius_list.append(optimal_set_radius)
-            chosen_radius_list.append((chosen_set[1] - chosen_set[0]/2))
+            chosen_radius_list.append((chosen_set[1] - chosen_set[0])/2)
             
             head_set_radius = np.array(head_set_radius)
 

@@ -103,7 +103,7 @@ class ACP_data:
         return all_label_value_pairs
     
     @staticmethod
-    def random_multi_shift(datapoints: int = 500, seq_range: tuple[int] = (500, 1000), dist_range: tuple = ((-10, 1), (10, 10)), number_shift_range: tuple[float] = (2, 5), data_transformation: Callable = None) -> list[tuple]:
+    def random_multi_shift(datapoints: int = 500, seq_range: tuple[int] = (1000, 2000), dist_range: tuple = ((-10, 1), (10, 10)), number_shift_range: tuple[float] = (2, 5), data_transformation: Callable = None) -> list[tuple]:
         ''' dist_range, gives min and max mean, and min and max variance.
             number_shift_range, gives the min and max number of shifts as a proportion of the sequence length.
             seq_range, gives the min and max sequence length.'''
