@@ -556,3 +556,149 @@ class AdaptiveCP:
                 'interval_size': 50
             }
 
+
+    def MACI(self, timeseries_data: tuple, interval_candidates: np.array = None, k: int = 2, r: float = 1, lookback: int =200, nu_sigma: tuple = (3*(10**-4), 0.15), gamma: float = 0.05, title: str = None):
+        ''' 
+        k: int - number of heads to consider
+        r: float - scales the recent loss
+        lookback: int - number of recent losses to consider
+
+        '''
+        nu, sigma = nu_sigma
+        Set_loss = self.set_loss_vectorize()
+
+        # Base level
+        _, y = timeseries_data
+        err_t_list = []
+        conformal_sets_list = []
+        all_interval_weights = []
+        chosen_interval_index = []
+        radii_list = []
+        
+        if interval_candidates is None:
+            interval_candidates = np.array(range(50, 1000, 100))
+
+        # Set_loss relevant
+        optimal_radius_list = []
+        chosen_radius_list = []
+        all_head_radii = []
+
+        # MACI relevant
+
+        loss_at_step_list = np.array(np.ones(len(interval_candidates)))
+        eligible_heads_list = []
+        eligible_absolute_weight_list = []
+        relative_eligible_final_weight_list = []
+
+        culmative_loss = np.zeros(len(interval_candidates)) # hoping to remove
+
+        # To sync all of the heads we need to start at the max of all the candidates.
+        start_point = max(interval_candidates) + 1
+        i_count = start_point
+
+        # Create the head and intitialse the weights.
+        ACI_heads = [self.ACI_head(timeseries_data, gamma, start_point, interval) for interval in interval_candidates]
+        interval_weights = np.ones(len(interval_candidates))
+        active_k = [*range(k)] # On the first step we will simply take the first k heads.
+        
+        # Continues calculating intervals until one of the heads stops.
+        none_terminated = True
+
+        while none_terminated: 
+            head_sets = [] # Will contain the result from each head.
+                
+            try:
+                # Create a list of the coverages for the different heads.
+                for head in ACI_heads:
+                        head_sets.append(next(head))
+            
+            except StopIteration: # One head is terminated.
+                none_terminated = False
+                break # You could but the return statement here
+            
+            # Here we choose the set of heads which we will make our choice from.
+            eligible_heads = np.take(head_sets, active_k)
+            eligible_weights = np.take(interval_weights, active_k)
+            normalised_eligible_weights = eligible_weights/sum(eligible_weights)
+
+            # Appending the eligible weights to the list.
+            eligible_absolute_weight_list.append(eligible_weights)
+            relative_eligible_final_weight_list.append(normalised_eligible_weights)
+
+            # Choosing which head to use.
+            try:
+                chosen_index = random.choices(active_k, weights=normalised_eligible_weights, k=1)[0] # Choosing the index of the head we wish to use.
+                chosen_set = head_sets[chosen_index]
+            except ValueError:
+                print(all_interval_weights[-5:])
+                raise ValueError('Interval probabilities are not normalised correctly.')
+            
+
+             # TIME FRONTIER -------------
+
+            # Seeing whether result lies within the set.
+            err_true = AdaptiveCP.err_t(y[i_count], chosen_set)
+
+            # Computing the conformal set radi. 
+            optimal_set_radius = abs(y[i_count] - y[i_count-1]) 
+            
+            head_set_radius = np.array(list(map(lambda Cset: (Cset[1] - Cset[0])/2, head_sets)))
+            
+            # Calculating the loss and updating culmative loss.
+            loss_at_step = Set_loss(optimal_set_radius, head_set_radius)
+            loss_at_step_list = np.vstack([loss_at_step_list, loss_at_step]) # Adding the loss to the list.
+
+            culmative_loss += Set_loss(optimal_set_radius, head_set_radius)
+
+            # Updating the active k.
+            recent_loss_performers = loss_at_step_list[-lookback:].sum(axis=0) # Summing the last 50 losses.
+            active_k = np.argsort(recent_loss_performers)[:k] # Getting the argument of the k smallest weights
+            eligible_heads_list.append(active_k)
+            
+            # Updating the weights.
+            
+            new_weights = interval_weights * np.exp(-1 * nu * (r*recent_loss_performers + culmative_loss)) # We want to consider the recent performance more.
+            final_weights = new_weights*(1-sigma) + (new_weights.mean() *sigma)
+            
+            interval_weights = final_weights/sum(final_weights)
+
+
+            # Incrementing the i-count
+            i_count+=1
+
+            # Appending the results to the lists.
+            conformal_sets_list.append(chosen_set)
+            chosen_interval_index.append(chosen_index)
+            err_t_list.append(err_true)
+            radii_list.append(head_set_radius)
+            chosen_radius_list.append((chosen_set[1] - chosen_set[0]/2)) 
+            optimal_radius_list.append(optimal_set_radius)
+            all_head_radii.append(head_set_radius)
+            all_interval_weights.append(interval_weights)
+
+        # Calculating different averages
+        realised_interval_coverage = 1 - pd.Series(err_t_list).rolling(50).mean().mean() # 50 is arbitary and could be improved.
+        average_prediction_interval = np.mean([abs(x[1] - x[0]) for x in conformal_sets_list])
+
+        return {
+                'model': title if title is not None else 'MACI',
+                'coverage_target': self.coverage_target,
+                'interval_candidates': interval_candidates,
+                'realised_interval_coverage': realised_interval_coverage,
+                'average_prediction_interval': average_prediction_interval,
+                'optimal_set_radius': optimal_radius_list, 
+                'chosen_set_radius': chosen_radius_list,
+                'all_head_radii': all_head_radii,
+                'all_weights': all_interval_weights,
+                'conformal_sets': conformal_sets_list,
+                'error_t_list': err_t_list,
+                'chosen_interval_index': chosen_interval_index,
+                'start_point': start_point,
+                'interval_size': 50,
+                'radii_list': radii_list,
+                'loss_at_step_list': loss_at_step_list,
+                'eligible_heads_list': eligible_heads_list,
+                'eligible_absolute_weight_list': eligible_absolute_weight_list,
+                'relative_eligible_final_weight_list': relative_eligible_final_weight_list
+                
+            }

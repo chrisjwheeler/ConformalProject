@@ -61,7 +61,7 @@ def get_stock_data(start_index, end_index):
 
     return stock_data_tuples
 
-def run_conformal_prediction(conformal_data: dict, stock_data: list, alpha: float, method: str, startpoint=550):
+def run_conformal_prediction(conformal_data: dict, stock_data: list, alpha: float, method: str, startpoint=450):
     logging.info(f'Running conformal prediction with alpha={alpha} and method={method}')
 
     # intialise Adative CP

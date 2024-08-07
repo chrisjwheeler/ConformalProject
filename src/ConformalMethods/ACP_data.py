@@ -1,9 +1,12 @@
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
+import os
 from typing import Callable
 from random import randint
+import yahooquery as yq
+import warnings
+# Unfortunatley yahooquery produces a lot of warnings.
+warnings.filterwarnings('ignore')
 
 class ACP_data:
     @staticmethod
@@ -126,3 +129,33 @@ class ACP_data:
             all_label_value_pairs.extend(ACP_data.multiple_shift(dist_shifts=dist_shifts, seq_length=seq_length, shift_points=shift_points, data_transformation=data_transformation, datapoints=1))
         
         return all_label_value_pairs  
+    
+    @staticmethod
+    def stock_data(datapoints: int = 100, slc: slice = None) -> tuple[int]:
+        '''Returns a list of tuples containing the stock data for the given number of datapoints.'''
+
+        # Open the file using the relative path
+        with open( r'C:\Users\tobyw\Documents\ChrisPython\ConformalProject\scripts\snptickers.txt', 'r') as f:
+            all_tickers = f.read().splitlines()
+            all_tickers.sort()
+
+        if slc is None:        
+            stock_tickers = all_tickers[:datapoints]
+        else:
+            stock_tickers = all_tickers[slc]
+
+        tickers = yq.Ticker(stock_tickers)
+        all_price_data = tickers.history(period='5y', interval='1d')
+        price_df = all_price_data[['close']].copy()
+        stock_data_tuples = []
+
+        # Some tickers in the list are incorrect or not trading so need 
+        for ticker_symbol in price_df.index.get_level_values(0).unique():
+            ticker_price_data = price_df.loc[ticker_symbol]
+            ticker_close = ticker_price_data['close'].to_numpy()
+
+            # Appending it to the stock_data_tuples list, the last volatilty is used as the prediciton for the next.
+            stock_data_tuples.append((ticker_close[:-1], ticker_close[1:]))
+        
+
+        return stock_data_tuples

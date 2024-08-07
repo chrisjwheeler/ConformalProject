@@ -242,7 +242,7 @@ class ACP_plots:
 
         if comparison:
             ACP = AdaptiveCP(data['coverage_target'])
-            Dt_data = ACP.DtACI(dist, custom_interval=max(interval_candidates))
+            Dt_data = ACP.DtACI(dist, custom_interval=interval_candidates[len(interval_candidates)//2])
             ACI_data = ACP.ACI(dist, 0.05)
 
         fig = plt.figure(figsize=(30, 20))
@@ -319,3 +319,81 @@ class ACP_plots:
         ax5.legend()
 
         plt.show()
+
+    @staticmethod
+    def analyse_MACI(data, method, candidates, shift_list, nu_sigma=(10**-2, 0.05), k=5, gamma=0.05):
+    
+        result = method(data, interval_candidates=candidates, nu_sigma=nu_sigma, k=k, gamma=gamma)
+        interval_candidates = result['interval_candidates']
+        print(result['realised_interval_coverage'])
+
+        plt.figure(figsize=(30, 15))
+        plt.subplot(2, 2, 1)
+        plt.plot(data[0])
+        for shift in shift_list:
+            plt.axvline(x=shift, color='red')
+        plt.title('Data with Shift Points')
+
+        shift_list = [x - max(interval_candidates) for x in shift_list]
+        plt.subplot(2, 2, 2)
+        rel_weights = np.column_stack(result['all_weights'])
+        for i, x in enumerate(rel_weights):
+            plt.plot(x, label=interval_candidates[i])
+        for shift in shift_list:
+            plt.axvline(x=shift, color='red')
+        plt.legend()
+        plt.title('Weight Distribution')
+
+        # Above is good.
+
+        all_eligible_heads_splits = np.split(result['eligible_heads_list'], shift_list)
+        all_eligible_weights_splits = np.split(result['relative_eligible_final_weight_list'], shift_list)
+
+        all_weights_splits = np.split(result['all_weights'], shift_list)
+        all_radii_splits = np.split(result['radii_list'], shift_list)
+
+        len_labels = [str(x) for x in interval_candidates]
+
+        flattened_eligible_heads_splits = [x.flatten() for x in all_eligible_heads_splits]
+        eligible_head_count = [np.unique(x, return_counts=True) for x in flattened_eligible_heads_splits]
+
+        list_weight_dstack = [np.dstack(x) for x in all_weights_splits]
+        list_mean_weight = [x.mean(axis=2).mean(axis=0) for x in list_weight_dstack]
+
+        list_radii_dstack = [np.dstack(x) for x in all_radii_splits]
+        list_mean_radii = [x.mean(axis=2).mean(axis=0) for x in list_radii_dstack]
+
+        plt.subplot(2, 2, 3)
+        plt.bar([str(x) for x in interval_candidates] + ['method'] , np.append(np.column_stack(result['radii_list']).mean(axis=1), result['average_prediction_interval']/2))
+        plt.title('Radii Distribution')
+
+        plt.tight_layout()
+        plt.show()
+
+
+        for i, (weight, radii) in enumerate(zip(list_mean_weight, list_mean_radii)):
+            print('Section:', i, '-'*100)
+            print(len(all_weights_splits[i]))
+            
+            fig, axs = plt.subplots(2, 2, figsize=(20, 10))
+
+            axs[0][0].pie(weight, labels=len_labels, autopct='%1.1f%%', startangle=140)
+            axs[0][0].set_title('Weight Distribution')
+
+            axs[0][1].bar(len_labels, radii)
+            axs[0][1].set_title('Radii Distribution')
+
+            heads, weights = eligible_head_count[i]
+            hw_dict = dict(zip(heads, weights/sum(weights)))
+
+            eligible_weighted = [(h, weight[h] * hw_dict[h]) if h in hw_dict else (h,0) for h in heads]
+            print(eligible_weighted)
+
+            axs[1][0].pie(weights, labels=[interval_candidates[w] for w in heads], autopct='%1.1f%%', startangle=140)
+            axs[1][0].set_title('Relative Occurence of head which are elligible')
+
+            axs[1][1].bar([str(interval_candidates[x[0]]) for x in eligible_weighted], [x[1] for x in eligible_weighted]) 
+            axs[1][1].set_title('Weighted Occurence of head which are elligible')
+
+            plt.show()
+

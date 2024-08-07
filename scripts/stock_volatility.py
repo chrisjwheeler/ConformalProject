@@ -93,8 +93,10 @@ def run_conformal_prediction(conformal_data: dict, stock_data: list, alpha: floa
 
         # Get the result dictionary, excepting exceptions and continuing unless there is a keyboard interrupt at which point you save the current state and raise the exception.
         try:
-            method_result = CP_method(data)
-            #ACP_plots.one_plot(method_result, data[1])
+            if method in ['ACI', 'DtACI']:
+                method_result = CP_method(data, custom_interval=300, startpoint=950)
+            else:
+                method_result = CP_method(data)
 
         except KeyboardInterrupt:
             logging.info('Keyboard interrupt, saving checkpoint')
