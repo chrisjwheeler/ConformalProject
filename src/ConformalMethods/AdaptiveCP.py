@@ -10,19 +10,29 @@ from random import randint
 class AdaptiveCP:
     def __init__(self, coverage_target=0.1, interval_size: int =50, score_function=None, neg_inverse_score=None, pos_inverse_score=None):
         self.coverage_target = coverage_target
+        
         self.interval_size = interval_size
+
         self.score_function = score_function if score_function is not None else lambda xpred, y: (abs(y - xpred))/abs(xpred)
         self.neg_inverse_score = neg_inverse_score if neg_inverse_score is not None else lambda x_t, Q: (x_t) - (abs(x_t) * Q)
         self.pos_inverse_score = pos_inverse_score if pos_inverse_score is not None else lambda x_t, Q: (x_t) + (abs(x_t) * Q)
 
     def C_t(self, alpha_t, scores, x_t, t, custom_interval = None):
+        '''Calculates the coverage set at time t.
+        
+        Parameters:
+        - alpha_t: float, The coverage target
+        - scores: list, The scores at each time step
+        - x_t: float, The value at time t
+        - t: int, The current time step
+        - custom_interval: int, The custom interval is the amount of past scores used to create quantile.
+        '''
+
         interval = custom_interval if custom_interval is not None else self.interval_size
         assert interval < len(scores), 'Attempting to look back further than is possible.'
         
         # Insuring that alpha_t is between 0 and 1
         alpha_t = min(1, max(0, alpha_t))
-
-        ## Trial code
 
         if 1 - alpha_t == 0:
             Q = 0
@@ -49,21 +59,23 @@ class AdaptiveCP:
     def vectorize_l(self):
         return np.vectorize(self.l)
         
-    def NonAdaptive(self, timeseries_data: tuple, custom_interval: int = None) -> dict:
+    def NonAdaptive(self, timeseries_data: tuple, startpoint : int = None,  custom_interval: int = None) -> dict:
+        ''' Implementation of the Non Adaptive Conformal Prediction method.'''
         xpred, y = timeseries_data
         alpha_t = self.coverage_target
 
-        if custom_interval is not None:
-            bigger_interval = max(custom_interval, self.interval_size) + 1
-        else:
-            bigger_interval = self.interval_size + 1
+        if startpoint is None:
+            if custom_interval is not None:
+                startpoint = max(custom_interval, self.interval_size) #+ 1
+            else:
+                startpoint = self.interval_size# + 1
  
         All_scores = self.score_function(xpred, y)
 
         err_t_list = []
         conformal_sets_list = []
         
-        for i in range(bigger_interval, len(All_scores)):
+        for i in range(startpoint, len(All_scores)):
             Coverage_t = self.C_t(alpha_t=alpha_t, scores=All_scores, x_t=xpred[i], t=i, custom_interval=custom_interval)
             conformal_sets_list.append(Coverage_t)
 
@@ -85,6 +97,7 @@ class AdaptiveCP:
         }
 
     def ACI(self, timeseries_data: tuple, gamma: float = 0.05, custom_interval = None, title: str = None, startpoint: int = None) -> dict:
+        ''' Implementation of the Adaptive Conformal Prediction method.'''
         xpred, y = timeseries_data
         alpha_t_list = [self.coverage_target]
 
@@ -127,6 +140,7 @@ class AdaptiveCP:
         
             
     def DtACI(self, timeseries_data: tuple, gamma_candidates: np.array = None, custom_interval: int = None, title: str = None, startpoint: int = None) -> dict:
+        ''' Implementation of the Dynamic Adaptive Conformal Prediction method, also commonly know as FACI'''
         xpred, y = timeseries_data
         if gamma_candidates is None:
             gamma_candidates = np.array([0.001, 0.004, 0.032, 0.064, 0.128, 0.256, 0.512])
@@ -281,6 +295,7 @@ class AdaptiveCP:
         return False
     
     def AwACI(self, timeseries_data: tuple, interval_candidates: np.array = None, nu_sigma: tuple = (10**-3, 0.05), gamma: float = 0.05, title: str = None):
+        ''' Implementation of the Adaptive Weighted Adaptive Conformal Prediction method, which is my own creation.'''
         
         xpred, y = timeseries_data
 
@@ -376,7 +391,8 @@ class AdaptiveCP:
             }
     
     def DtACI_head(self, timeseries_data: tuple, custom_interval: int = None, start_point: int = None, gamma_candidates: np.array = None,  title: str = None):
-        '''start_point: The value which the head will start calculating from'''
+        ''' Adapting DtACI to be a head.
+            start_point: The value which the head will start calculating from'''
         
         xpred, y = timeseries_data
         if gamma_candidates is None:
@@ -559,6 +575,8 @@ class AdaptiveCP:
 
     def MACI(self, timeseries_data: tuple, interval_candidates: np.array = None, k: int = 2, r: float = 1, lookback: int =200, nu_sigma: tuple = (3*(10**-4), 0.15), gamma: float = 0.05, title: str = None):
         ''' 
+        Implementation of the Multi Adaptive Conformal Prediction method, which is my own creation.
+
         k: int - number of heads to consider
         r: float - scales the recent loss
         lookback: int - number of recent losses to consider

@@ -10,7 +10,20 @@ warnings.filterwarnings('ignore')
 
 class ACP_data:
     @staticmethod
-    def no_shift(norm_dist: tuple = (0,1), seq_length: int = 500, data_transformation: Callable = None, datapoints: int = 1) -> list[tuple]:
+    def no_shift(norm_dist: tuple = (0,1), seq_length: int = 2000, data_transformation: Callable = None, datapoints: int = 1) -> list[tuple]:
+        """
+        Generate a list of tuples containing input and label data pairs.
+
+        Args:
+            norm_dist (tuple, optional): A tuple representing the mean and standard deviation of the normal distribution. Defaults to (0, 1).
+            seq_length (int, optional): The length of the generated sequence. Defaults to 2000.
+            data_transformation (Callable, optional): A function that transforms the generated data. Defaults to None.
+            datapoints (int, optional): The number of data points to generate. Defaults to 1.
+
+        Returns:
+            list[tuple]: A list of tuples, where each tuple contains the input data and corresponding label data.
+        """
+        
         if data_transformation is None:
             data_transformation = lambda x: np.append(x[0], 0.1*x[:-1] + x[1:])
 
@@ -26,8 +39,23 @@ class ACP_data:
         return all_label_value_pairs
 
     @staticmethod
-    def single_shift(inital_dist: tuple = (0,1), shifted_dist: tuple = (1,1), seq_length: int = 500, shift_point: int = 50, data_transformation: Callable = None, datapoints: int = 1) -> list[tuple]:
-        assert shift_point < seq_length, 'Shift point must be less then the sequence length.'
+    def single_shift(inital_dist: tuple = (0,1), shifted_dist: tuple = (1,1), seq_length: int = 2000, shift_point: int = 50, data_transformation: Callable = None, datapoints: int = 1) -> list[tuple]:
+        """
+        Generate a list of tuples containing input and label data pairs with a single shift point.
+
+        Args:
+            inital_dist (tuple, optional): Mean and standard deviation of the initial distribution. Defaults to (0,1).
+            shifted_dist (tuple, optional): Mean and standard deviation of the shifted distribution. Defaults to (1,1).
+            seq_length (int, optional): Length of the generated sequence. Defaults to 2000.
+            shift_point (int, optional): Index at which the shift occurs in the sequence. Defaults to 50.
+            data_transformation (Callable, optional): Function to transform the generated data. Defaults to None.
+            datapoints (int, optional): Number of data points to generate. Defaults to 1.
+
+        Returns:
+            list[tuple]: List of tuples containing input and label data pairs.
+        """
+        
+        assert shift_point < seq_length, 'Shift point must be less than the sequence length.'
         
         if data_transformation is None:
             data_transformation = lambda x: np.append(x[0], 0.1*x[:-1] + x[1:])
@@ -49,7 +77,7 @@ class ACP_data:
     @staticmethod
     def multiple_shift(dist_shifts: list[tuple], seq_length : int = 500, shift_points: list[float] = None, data_transformation: Callable = None, datapoints: int = 1) -> list[tuple]:
         '''shift_points: should be an ordered set of proportions with length one less than the length of dist_shifts.'''
-
+        
         if data_transformation is None:
             data_transformation = lambda x: np.append(x[0], 0.1*x[:-1] + x[1:])
 

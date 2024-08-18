@@ -6,59 +6,30 @@ from typing import Callable
 from random import randint
 from . import AdaptiveCP
 
-#import AdaptiveCP
 
 class ACP_plots:
-    def __init__(self):
-        pass
-    
-    @staticmethod
-    def plot_conformal_intervals(data_list: list):
-        _, ax = plt.subplots()
-        for data in data_list:
-            ax.plot(data['conformal_sets'], label=data['model'])
-            ax.plot(data['error_t'])
-        
-        ax.legend()
-        ax.set_title('Conformal Intervals')
-        ax.set_xlabel('Time')
-        ax.set_ylabel('Conformal Interval')
-        plt.show()
-
-    @staticmethod
-    def plot_alpha_t(data_list: list):
-        _, ax = plt.subplots()
-        for data in data_list:
-            if 'alpha_t_list' in data:
-                ax.plot(data['alpha_t_list'], label=data['model'])
-
-        ax.legend()
-        ax.set_title('Alpha_t')
-        ax.set_xlabel('Time')
-        ax.set_ylabel('Alpha_t')
-        plt.show()
-
-    @staticmethod
-    def plot_y(data: list[tuple], y: list, gap: int = 0, figsize: tuple[int] =(30, 15)) -> None:
-        interval_size = max(51, gap+1)
-        bottom = [ele[0] for ele in data['conformal_sets']]
-        top = [ele[1] for ele in data['conformal_sets']]
-        print(len(y), len(bottom), len(top))
-
-        _, ax = plt.subplots(figsize=figsize)
-        ax.plot(y[interval_size:], label='True Value')
-        ax.plot(bottom, label='Lower Bound')
-        ax.plot(top, label='Upper Bound')
-
-        ax.legend()
-        ax.set_title('Conformal Prediction')
-        ax.set_xlabel('Time')
-        ax.set_ylabel('Value')
-        plt.show()
-
 
     @staticmethod
     def one_plot(data, y):
+        '''
+        Plot various visualizations for Adaptive Conformal Prediction.
+
+        Parameters:
+        - data (dict): A dictionary containing the following keys:
+            - 'error_t_list' (list): List of error values.
+            - 'conformal_sets' (list): List of conformal sets.
+            - 'realised_interval_coverage' (float): Realized interval coverage.
+            - 'interval_size' (int): Size of the interval.
+            - 'alpha_t_list' (list, optional): List of alpha values. Default is None.
+            - 'B_t_list' (list, optional): List of B values. Default is None.
+            - 'model' (str): Name of the model.
+
+        - y (list): List of y values.
+
+        Returns:
+        - None
+
+        '''
 
         error_list = data['error_t_list']
         conformal_sets = data['conformal_sets']
@@ -99,7 +70,25 @@ class ACP_plots:
 
     @staticmethod
     def plot_scale_interval(data):
-        ## For experiments with scale and interval size
+        '''
+        Plots various metrics related to adaptive conformal prediction.
+
+        Parameters:
+        - data (dict): A dictionary containing the following keys:
+            - 'error_t_list' (list): List of error values.
+            - 'conformal_sets' (list): List of conformal sets.
+            - 'realised_interval_coverage' (float): Realized interval coverage.
+            - 'interval_size' (int): Interval size.
+            - 'interval_list' (list): List of interval values.
+            - 'scale_list' (list): List of scale values.
+            - 'model' (str): Name of the model.
+
+        Raises:
+        - ValueError: If 'scale_list' or 'interval_list' is not present in the data.
+
+        Returns:
+        - None: This function does not return anything. It only plots the metrics.
+        '''
 
         if 'scale_list' not in data or 'interval_list' not in data:
             raise ValueError('Data does not contain scale_list or interval_list')
@@ -143,6 +132,19 @@ class ACP_plots:
     
     @staticmethod
     def compare_two(method1, method2, figsize: tuple[int] =(10, 5)):
+        '''
+        Compare two methods and plot the results.
+
+        Parameters:
+        - method1 (dict): Dictionary containing information about the first method.
+        - method2 (dict): Dictionary containing information about the second method.
+        - figsize (tuple[int], optional): Figure size for the subplots. Default is (10, 5).
+
+        Returns:
+        - None
+
+        '''
+
         model1 = method1['model']
         model2 = method2['model']
 
@@ -182,6 +184,14 @@ class ACP_plots:
 
     @staticmethod
     def compare_many(list_of_methods, figsize: tuple[int] =(10, 5)):
+        '''
+        Compare multiple methods and plot the results.
+        
+        Parameters:
+        - list_of_methods (list[dict]): List of dictionaries containing information about the methods.
+        - figsize (tuple[int], optional): Figure size for the subplots. Default is (10, 5).
+
+        '''
         interval_size = list_of_methods[0]['interval_size']
 
         # Create a 2x2 grid
@@ -229,6 +239,24 @@ class ACP_plots:
 
     @staticmethod
     def AwDT_plot(data, dist: tuple, comparison = False):
+        '''
+        Plot various metrics related to Aw methods specificaly.
+        
+        Parameters:
+        - data (dict): A dictionary containing the following
+            - 'error_t_list' (list): List of error values.
+            - 'conformal_sets' (list): List of conformal sets.
+            - 'realised_interval_coverage' (float): Realized interval coverage.
+            - 'interval_size' (int): Size of the interval.
+            - 'interval_candidates' (list): List of interval candidates.
+            - 'average_prediction_interval' (float): Average prediction interval.
+            - 'chosen_interval_index' (list): List of chosen interval indices.
+            - 'start_point' (int): Start point of the interval.
+            - 'coverage_target' (float): Target coverage.
+        - dist (tuple): Tuple containing the distribution.
+        - comparison (bool, optional): Whether to compare with other methods. Default is False.
+        '''
+
         y = dist[1]
         error_list = data['error_t_list']
         conformal_sets = data['conformal_sets']
@@ -321,7 +349,22 @@ class ACP_plots:
         plt.show()
 
     @staticmethod
-    def analyse_MACI(data, method, candidates, shift_list, nu_sigma=(10**-2, 0.05), k=5, gamma=0.05):
+    def analyse_MACI(data: tuple, method: Callable, candidates: list, shift_list: list[int], nu_sigma: tuple =(10**-2, 0.05), k: int=5, gamma=0.005):
+        '''
+        Analyse the results of MACI method.
+
+        Parameters:
+        - data (list): List of data points.
+        - method (Callable): Method to be used.
+        - candidates (list): List of interval candidates.
+        - shift_list (list): List of shift points.
+        - nu_sigma (tuple, optional): Tuple containing the nu and sigma values. Default is (10**-2, 0.05).
+        - k (int, optional): Number of heads. Default is 5.
+        - gamma (float, optional): Gamma value. Default is 0.005.
+
+        Returns:
+        - None
+        '''
     
         result = method(data, interval_candidates=candidates, nu_sigma=nu_sigma, k=k, gamma=gamma)
         interval_candidates = result['interval_candidates']
@@ -375,7 +418,7 @@ class ACP_plots:
             print('Section:', i, '-'*100)
             print(len(all_weights_splits[i]))
             
-            fig, axs = plt.subplots(2, 2, figsize=(20, 10))
+            _, axs = plt.subplots(2, 2, figsize=(20, 10))
 
             axs[0][0].pie(weight, labels=len_labels, autopct='%1.1f%%', startangle=140)
             axs[0][0].set_title('Weight Distribution')
