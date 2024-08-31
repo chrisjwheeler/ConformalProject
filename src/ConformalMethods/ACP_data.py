@@ -187,3 +187,157 @@ class ACP_data:
         
 
         return stock_data_tuples
+    
+    @staticmethod
+    def test_on_stock_data(ACP_instance, ACP_method, datapoints: int, *args):
+        '''Run method on multiple stock distributions and then return dictionary of results.'''
+        
+        results_dict = {'coverge':[], 
+                        'width':[],
+                        'raw_results': []}
+        
+        stock_data = ACP_data.stock_data(datapoints)
+        stock_data = ACP_data.xvy_from_ACP(stock_data)
+        
+        for data in stock_data:
+            result = ACP_method(ACP_instance, data, *args)
+
+            results_dict['raw_results'].append(result)
+            results_dict['coverge'].append(result['realised_interval_coverage'])
+            results_dict['width'].append(result['average_prediction_interval'])
+
+        
+        coverage_mean = np.mean(results_dict['coverge'])
+        width_mean = np.mean(results_dict['width'])
+
+        results_dict['coverage_mean'] = coverage_mean
+        results_dict['width_mean'] = width_mean
+
+        return results_dict
+    
+    @staticmethod
+    def create_nomrmal_cheb_data(length: int, model_error: float = 0.1, time_series_function: callable = lambda x: x, var_range: tuple = (0.5, 2)) -> tuple:
+        minv, maxv = var_range
+
+        true_variance_array = np.random.uniform(minv, maxv, length)
+        corresponding_normal = np.random.normal(0, true_variance_array, length)
+
+        model_variance_array = true_variance_array + np.random.uniform(model_error*minv, model_error*maxv, length)
+        time_series_normal = time_series_function(corresponding_normal)
+
+        # Now we need to return as xpred, varpred, y
+        # The variance is the prediction for the same time step. 
+        # Hence you need to ignore the first value for the variance as you do for the true value.
+        
+        return (time_series_normal[:-1], model_variance_array[1:], time_series_normal[1:])
+
+    @staticmethod
+    def create_hetroskedatic_cheb_data(length: int, model_error: float = 0.1, var_range: tuple = (0.5, 2)) -> tuple:
+        '''Model error roughly corresponds to percentage uncertainty in the model.'''  
+
+        # We will simulate a random walk for the variance. Might do a exponenital random walk as 
+        # then no issues with negative values.
+
+        exp_random_walk = np.random.normal(0, 0.1, length)
+        true_variance_array = np.exp(np.cumsum(exp_random_walk))
+
+        corresponding_normal = np.random.normal(0, true_variance_array, length)
+
+        model_variance_array = true_variance_array + (true_variance_array * np.random.uniform(model_error, 2-model_error, length))
+        time_series_normal = np.cumsum(corresponding_normal)
+
+        # Now we need to return as xpred, varpred, y
+
+        return (time_series_normal[:-1], model_variance_array[1:], time_series_normal[1:])
+
+    @staticmethod
+    def xvy_from_y(series, lookback: int = -1):
+        '''This function will create the x, var and y series from the y series.'''
+        
+        if lookback == -1:
+            lookback = len(series) # This results in all data being used.
+
+        x = series[:-1]
+        y = series[1:]
+
+        # Calculating the series of sample variances of a length lookback.
+        var = [np.var(series[max(0, i - lookback):i+1]) for i in range(1, len(series))]
+
+        return x, var, y
+
+    @staticmethod
+    def xvy_from_ACP(dataset, lookback: int = -1):
+        ''' Converts data from ACP format to xvy format.'''
+
+        lookback = len(dataset) if lookback == -1 else lookback
+        final = []
+        for x, y in dataset:
+            var = [np.var(x[max(0, i - lookback):i+1]) for i in range(1, len(x))] # We need to ignore the first value.
+            final.append((x[1:], var, y[1:]))
+
+        return final
+
+    @staticmethod
+    def xvy_correction(dataset):
+        ''' Corrects ACP data so that it can be compared with xvy counterpart.'''
+        return [(x[0][1:], x[1][1:]) for x in dataset]
+    
+    @staticmethod
+    def compare_results(first_results_dict, second_results_dict):
+        ''' Takes the two results and will do a thorough comparison. Will assume that they have been evaluated on the same data.'''
+
+        # Printing the averages.
+        print(f'The widths are')
+        
+        # We will compare the following:
+        # - Basic averages as ususal    
+        # Including variances.
+        # - Summary of when one method is better what else is true, so when outperforming what is the average difference in coverages.
+        # - Want to know the periodicity of the coverage.
+
+  
+
+# Best way to do this:
+#class which you load the data and then run compare which is a method, this will allow for easier loading. do this later.
+    
+class Comparison:
+    # It might be easier to just covert eveything to var as we essentialy remove one datapoint.
+
+    def __init__():
+        '''Give methods and instances which need to be compared.'''
+        method_dict = {'instance':,
+                       'method':,
+                       'args:'}
+
+    def load_data():
+        '''Load the data that the comparison will run on. Give the data should be able to deal with var and non var data.'''
+        NotImplemented
+
+    def logic():
+        '''This is the logic that will be used for the comparison it will be run on every method and instance.'''
+        NotImplemented
+
+    def custom_logic():
+        '''This can be overwritten which will make a comparison easier'''
+        NotImplemented
+    
+    def Comparison():
+        '''This will run the comparison over all of the methods.'''
+        NotImplemented
+
+        # We should already have the raw comparisons and then shoudl loop throught the results.
+    
+    def save():
+        '''Save the results.'''
+        NotImplemented
+
+    def __str__():
+        '''This will show the comparison.'''
+        NotImplemented
+
+    def dashboard():
+        '''This will give a visualisation of the results.'''
+        NotImplemented
+
+# My thought now are that this might be too powerful for jupyter. I guess you can add saving logic to it as well. 
+# This will be a large undertaking but as your current biggest weakness is that you are stuggling to compare results I think that it will be worth the effort.
