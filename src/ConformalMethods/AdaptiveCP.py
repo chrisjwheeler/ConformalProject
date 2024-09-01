@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from typing import Callable
 import random
+from scipy.optimize import minimize
 from random import randint
 
 
@@ -720,3 +721,231 @@ class AdaptiveCP:
                 'relative_eligible_final_weight_list': relative_eligible_final_weight_list
                 
             }
+
+
+    @staticmethod
+    def pinball_loss_function(target, y, y_hat):
+        'Simple pinball loss without sub'
+        return (target * (y - y_hat)) - min(0, (y - y_hat))
+
+    def conditional_quantile_loss(self, params: list, target: float, dataset: list[tuple]):
+        ''' Calculates the loss if we were to use the lambda_const and lambda_var provided.'''
+        zipped_data_set = zip(dataset[0], dataset[1]) 
+        loss_list = [AdaptiveCP.pinball_loss_function(target, y, (params[0] + params[1] * var)) for var, y in zipped_data_set]
+
+        return sum(loss_list)
+
+    def HACI(self, timeseries_with_var_data: tuple, gamma: float = 0.05, custom_interval = None, title: str = None, startpoint: int = None) -> dict:
+        ''' Implementation of Henry's Adaptive Conformal Prediction method.'''
+        xpred, varpred, y = timeseries_with_var_data
+
+        alpha_t_list = [self.coverage_target]
+        lower_bound, upper_bound = [(None, 0), (None, None)], [(0, None), (None, None)] # We will not allow the constant term to allow for nosensical predictions.
+        params_t_list = {'lower': [(0,0)],
+                         'upper': [(0,0)]} # params list. with the inital guess.
+
+
+        # y> xpred means positive score.
+        All_scores = y - xpred 
+
+        err_t_list = []
+        conformal_sets_list = []
+
+        if startpoint is None:
+            if custom_interval is not None:
+                startpoint = max(custom_interval, self.interval_size) + 1
+            else:
+                startpoint = self.interval_size + 1
+
+        for i in range(startpoint, len(All_scores)):
+            # We need to replace this.
+        
+            # Fitting the upper and lower parameters.
+            lower_params = minimize(self.conditional_quantile_loss, params_t_list['lower'][-1], 
+                                    bounds=lower_bound, args=(alpha_t_list[-1]/2, (varpred[i-self.interval_size:i], All_scores[i-self.interval_size:i]))).x
+            
+            upper_params = minimize(self.conditional_quantile_loss, params_t_list['upper'][-1],
+                                    bounds=upper_bound, args=(1-alpha_t_list[-1]/2, (varpred[i-self.interval_size:i], All_scores[i-self.interval_size:i]))).x
+        
+            params_t_list['lower'].append(lower_params)
+            params_t_list['upper'].append(upper_params)
+
+            # Using fitted values to create the conformal set.
+            lower_bound_t = lower_params[0] + lower_params[1] * varpred[i]
+            upper_bound_t = upper_params[0] + upper_params[1] * varpred[i]
+            
+            conformal_set = (xpred[i] + min(0, lower_bound_t), xpred[i] + max(0, upper_bound_t))
+
+            conformal_sets_list.append(conformal_set)
+
+            # Updating the alpha_t.
+            error_t = AdaptiveCP.err_t(y[i], conformal_set)
+            err_t_list.append(error_t)
+
+            alpha_t = min(max(alpha_t_list[-1] + (gamma * (self.coverage_target - error_t)), 0), 1)
+            alpha_t_list.append(alpha_t)
+
+        # Calculating different metrics.
+        realised_interval_coverage = 1 - pd.Series(err_t_list).rolling(self.interval_size).mean().mean()
+        average_prediction_interval = np.mean([abs(x[1] - x[0]) for x in conformal_sets_list])
+
+        return {
+            'model': title if title is not None else 'HACI',
+            'coverage_target': self.coverage_target,
+            'gamma': gamma,
+            'realised_interval_coverage': realised_interval_coverage,
+            'alpha_t_list': alpha_t_list,
+            'average_prediction_interval': average_prediction_interval,
+            'conformal_sets': conformal_sets_list,
+            'error_t_list': err_t_list, 
+            'interval_size': self.interval_size,
+            'params_t_list': params_t_list,
+
+        }
+    
+    def HACI_one_side(self, timeseries_with_var_data: tuple, gamma: float = 0.05, custom_interval = None, title: str = None, startpoint: int = None) -> dict:
+            ''' Implementation of the Onsided Henry Adaptive Conformal Prediction method.'''
+            xpred, varpred, y = timeseries_with_var_data
+
+            alpha_t_list = [self.coverage_target]
+            bound = [(0, None), (None, None)] # We will not allow the constant term to allow for nosensical predictions.
+            params_t_list = [[0,0]]# params list. with the inital guess.
+
+
+            # y> xpred means positive score.
+            All_scores = abs(y - xpred)
+
+            err_t_list = []
+            conformal_sets_list = []
+
+            if startpoint is None:
+                if custom_interval is not None:
+                    startpoint = max(custom_interval, self.interval_size) + 1
+                else:
+                    startpoint = self.interval_size + 1
+
+            for i in range(startpoint, len(All_scores)):
+                # We need to replace this.
+            
+                # Fitting the upper and lower parameters.
+                
+                params = minimize(self.conditional_quantile_loss, params_t_list[-1],
+                                        bounds=bound, args=(1-alpha_t_list[-1], (varpred[i-self.interval_size:i], All_scores[i-self.interval_size:i]))).x
+            
+                params_t_list.append(params)
+
+                # Using fitted values to create the conformal set.
+                pred_score_t = params[0] + params[1] * varpred[i]
+         
+                conformal_set = (xpred[i]  - max(0, pred_score_t), xpred[i] + max(0, pred_score_t))
+
+                conformal_sets_list.append(conformal_set)
+
+                # Updating the alpha_t.
+                error_t = AdaptiveCP.err_t(y[i], conformal_set)
+                err_t_list.append(error_t)
+
+                alpha_t = min(max(alpha_t_list[-1] + (gamma * (self.coverage_target - error_t)), 0), 1)
+                alpha_t_list.append(alpha_t)
+
+            # Calculating different metrics.
+            realised_interval_coverage = 1 - pd.Series(err_t_list).rolling(self.interval_size).mean().mean()
+            average_prediction_interval = np.mean([abs(x[1] - x[0]) for x in conformal_sets_list])
+
+            return {
+                'model': title if title is not None else 'HACIonesided',
+                'coverage_target': self.coverage_target,
+                'gamma': gamma,
+                'realised_interval_coverage': realised_interval_coverage,
+                'alpha_t_list': alpha_t_list,
+                'average_prediction_interval': average_prediction_interval,
+                'conformal_sets': conformal_sets_list,
+                'error_t_list': err_t_list, 
+                'interval_size': self.interval_size,
+                'params_t_list': params_t_list,
+
+            }
+    
+    def HACI_dual_tail(self, timeseries_with_var_data: tuple, gamma: float = 0.05, custom_interval = None, title: str = None, startpoint: int = None) -> dict:
+        ''' Implementation of Henry's Adaptive Conformal Prediction method with two tails.'''
+        xpred, varpred, y = timeseries_with_var_data
+
+        # Need to turn this into a dict, as will save to alpha_t_lists.
+        alpha_t_dict = {'lower': [self.coverage_target/2],
+                        'upper': [self.coverage_target/2]}
+        
+        lower_bound, upper_bound = [(None, 0), (None, None)], [(0, None), (None, None)] # We will not allow the constant term to allow for nosensical predictions.
+        
+        params_t_list = {'lower': [(0,0)],
+                         'upper': [(0,0)]} # params list. with the inital guess.
+
+
+        # y> xpred means positive score.
+        All_scores = y - xpred 
+
+        err_t_list = []
+        conformal_sets_list = []
+
+        if startpoint is None:
+            if custom_interval is not None:
+                startpoint = max(custom_interval, self.interval_size) + 1
+            else:
+                startpoint = self.interval_size + 1
+
+        for i in range(startpoint, len(All_scores)):
+            # These need to change to correspond to the right alpha_t, values.
+        
+            # Fitting the upper and lower parameters.
+            lower_params = minimize(self.conditional_quantile_loss, params_t_list['lower'][-1], 
+                                    bounds=lower_bound, args=(alpha_t_dict['lower'][-1], (varpred[i-self.interval_size:i], All_scores[i-self.interval_size:i]))).x
+            
+            upper_params = minimize(self.conditional_quantile_loss, params_t_list['upper'][-1],
+                                    bounds=upper_bound, args=(1-alpha_t_dict['upper'][-1], (varpred[i-self.interval_size:i], All_scores[i-self.interval_size:i]))).x
+        
+            params_t_list['lower'].append(lower_params)
+            params_t_list['upper'].append(upper_params)
+
+            # Using fitted values to create the conformal set.
+            lower_bound_t = lower_params[0] + lower_params[1] * varpred[i]
+            upper_bound_t = upper_params[0] + upper_params[1] * varpred[i]
+            
+            conformal_set = (xpred[i] + min(0, lower_bound_t), xpred[i] + max(0, upper_bound_t))
+
+            conformal_sets_list.append(conformal_set)
+
+            # Updating the alpha_t.
+            error_t = AdaptiveCP.err_t(y[i], conformal_set)
+            err_t_list.append(error_t)
+
+            # Here we need to update them seperately. You shoudl update conditional on whether the prediction is above or below.
+            if y[i] > xpred[i]: # Over prediction corresponds to the upperbound.
+                new_alpha_t = min(max(alpha_t_dict['upper'][-1] + (gamma * (self.coverage_target - error_t)), 0), 1)
+                alpha_t_dict['upper'].append(new_alpha_t)
+            else:
+                new_alpha_t = min(max(alpha_t_dict['lower'][-1] + (gamma * (self.coverage_target - error_t)), 0), 1)
+                alpha_t_dict['lower'].append(new_alpha_t)
+
+        # Calculating different metrics.
+        realised_interval_coverage = 1 - pd.Series(err_t_list).rolling(self.interval_size).mean().mean()
+        average_prediction_interval = np.mean([abs(x[1] - x[0]) for x in conformal_sets_list])
+
+        return {
+            'model': title if title is not None else 'HACI_dual_tail',
+            'coverage_target': self.coverage_target,
+            'gamma': gamma,
+            'realised_interval_coverage': realised_interval_coverage,
+            'alpha_t_list': alpha_t_dict['upper'], # This is a legacy artefact.
+            'alpha_t_dict': alpha_t_dict,
+            'average_prediction_interval': average_prediction_interval,
+            'conformal_sets': conformal_sets_list,
+            'error_t_list': err_t_list, 
+            'interval_size': self.interval_size,
+            'params_t_list': params_t_list,
+
+        }
+
+        
+
+
+    
+

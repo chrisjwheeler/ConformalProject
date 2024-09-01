@@ -173,7 +173,7 @@ class ACP_data:
             stock_tickers = all_tickers[slc]
 
         tickers = yq.Ticker(stock_tickers)
-        all_price_data = tickers.history(period='5y', interval='1d')
+        all_price_data = tickers.history(period='10y', interval='1d')
         price_df = all_price_data[['close']].copy()
         stock_data_tuples = []
 
@@ -189,7 +189,7 @@ class ACP_data:
         return stock_data_tuples
     
     @staticmethod
-    def test_on_stock_data(ACP_instance, ACP_method, datapoints: int, *args):
+    def test_on_stock_data(ACP_instance, ACP_method, datapoints: int, withvar: bool = False,  *args):
         '''Run method on multiple stock distributions and then return dictionary of results.'''
         
         results_dict = {'coverge':[], 
@@ -197,9 +197,15 @@ class ACP_data:
                         'raw_results': []}
         
         stock_data = ACP_data.stock_data(datapoints)
-        stock_data = ACP_data.xvy_from_ACP(stock_data)
         
+        if withvar:
+            stock_data = ACP_data.xvy_from_ACP(stock_data)
+        else:
+            stock_data = ACP_data.xvy_correction(stock_data)
+        
+
         for data in stock_data:
+            
             result = ACP_method(ACP_instance, data, *args)
 
             results_dict['raw_results'].append(result)
@@ -283,61 +289,78 @@ class ACP_data:
         return [(x[0][1:], x[1][1:]) for x in dataset]
     
     @staticmethod
-    def compare_results(first_results_dict, second_results_dict):
-        ''' Takes the two results and will do a thorough comparison. Will assume that they have been evaluated on the same data.'''
+    def simple_comparison(result_list_1: list, result_list_2: list):
+        ''' Compares on the following metrics:
+        Throughout, 0 corresponds to the first model and 1 corresponds to the second model.
+        - relative_width: The ratio of the average prediction interval of the first model to the second model.
+        - average_difference_coverage: The difference between the realised coverage and the target coverage.
+        - better_coverage: A binary value of which model has the closer coverage to target.
+        - largest_coverage_deviation: A binary value of which model has the largest deviation from the target coverage.
+        - largest_ratio_above_and_below_deviation: A binary value of which model has the largest ratio of above and below the target coverage.'''
 
-        # Printing the averages.
-        print(f'The widths are')
+        raw_metric_dict = {
+            'better_coverage:': [], # closer is better
+            'relative_width': [],
+            'average_difference_coverage': [],
+            'relative_width_no_outliers': [],
+            'average_coverage_difference': [],
+            'largest_coverage_deviation': [], # closer is worse
+            'largest_ratio_above_and_below_deviation': [], # closer is worse.
+        }
+
+        for r1, r2 in zip(result_list_1, result_list_2):
+            # Relative width and average difference coverage.
+            raw_metric_dict['relative_width'].append(r1['average_prediction_interval'] / r2['average_prediction_interval'])
+            raw_metric_dict['average_difference_coverage'].append(r1['realised_interval_coverage'] - r2['realised_interval_coverage'])
+
+            # better coverage.
+            if abs(r1['realised_interval_coverage'] - 1 + r1['coverage_target']) < abs(r2['realised_interval_coverage'] - 1 + r2['coverage_target']):
+                # r1 better
+                raw_metric_dict['better_coverage:'].append(0)
+            else:
+                raw_metric_dict['better_coverage:'].append(1)
+
+            # Largest deviation from desired coverage.
+            r1_rolling_coverage_deviation = pd.Series(r1['error_t_list']).rolling(r1['interval_size']).mean() - r1['coverage_target']
+            r2_rolling_coverage_deviation = pd.Series(r2['error_t_list']).rolling(r2['interval_size']).mean() - r2['coverage_target']
+
+            if max(abs(r1_rolling_coverage_deviation.dropna())) > max(abs(r2_rolling_coverage_deviation.dropna())):
+                # r1 bigger
+                raw_metric_dict['largest_coverage_deviation'].append(0)
+            else:
+                raw_metric_dict['largest_coverage_deviation'].append(1)
+
+            # Time spent below desired vs above.
+            r1_above = r1_rolling_coverage_deviation < 0
+            r2_above = r2_rolling_coverage_deviation < 0
+
+            r1_ratio_above = sum(r1_above) / len(r1_above)
+            r2_ratio_above = sum(r2_above) / len(r2_above)
+
+            if abs(r1_ratio_above - 0.5) > abs(r2_ratio_above - 0.5):
+                #r1 bigger
+                raw_metric_dict['largest_ratio_above_and_below_deviation'].append(0)
+            else:
+                raw_metric_dict['largest_ratio_above_and_below_deviation'].append(1)
         
-        # We will compare the following:
-        # - Basic averages as ususal    
-        # Including variances.
-        # - Summary of when one method is better what else is true, so when outperforming what is the average difference in coverages.
-        # - Want to know the periodicity of the coverage.
+        # Removing outliers.
+        q1 = np.percentile(raw_metric_dict['relative_width'], 5)
+        q3 = np.percentile(raw_metric_dict['relative_width'], 95)
+        iqr = q3 - q1
+        lower_bound = q1 - 1.5 * iqr
+        upper_bound = q3 + 1.5 * iqr
+        np_rel = np.array(raw_metric_dict['relative_width'])
+        relative_width_outliers_removed = np_rel[(np_rel >= lower_bound) & (np_rel <= upper_bound)]
 
-  
-
-# Best way to do this:
-#class which you load the data and then run compare which is a method, this will allow for easier loading. do this later.
+        # taking averages of relevant keys and adding to the metric_dict.
+        results_dict = {
+            'relative_width_mean': np.mean(raw_metric_dict['relative_width']),
+            'relative_width_std': np.std(raw_metric_dict['relative_width']),
+            'relative_width_no_outliers_mean': np.mean(relative_width_outliers_removed),
+            'average_coverage_difference_mean': np.mean(raw_metric_dict['average_difference_coverage']),
+            'largest_coverage_deviation_mean': np.mean(raw_metric_dict['largest_coverage_deviation']),
+            'largest_ratio_above_and_below_deviation_mean': np.mean(raw_metric_dict['largest_ratio_above_and_below_deviation']),
+            'better_coverage_mean': np.mean(raw_metric_dict['better_coverage:'])
+        }
     
-class Comparison:
-    # It might be easier to just covert eveything to var as we essentialy remove one datapoint.
-
-    def __init__():
-        '''Give methods and instances which need to be compared.'''
-        method_dict = {'instance':,
-                       'method':,
-                       'args:'}
-
-    def load_data():
-        '''Load the data that the comparison will run on. Give the data should be able to deal with var and non var data.'''
-        NotImplemented
-
-    def logic():
-        '''This is the logic that will be used for the comparison it will be run on every method and instance.'''
-        NotImplemented
-
-    def custom_logic():
-        '''This can be overwritten which will make a comparison easier'''
-        NotImplemented
-    
-    def Comparison():
-        '''This will run the comparison over all of the methods.'''
-        NotImplemented
-
-        # We should already have the raw comparisons and then shoudl loop throught the results.
-    
-    def save():
-        '''Save the results.'''
-        NotImplemented
-
-    def __str__():
-        '''This will show the comparison.'''
-        NotImplemented
-
-    def dashboard():
-        '''This will give a visualisation of the results.'''
-        NotImplemented
-
-# My thought now are that this might be too powerful for jupyter. I guess you can add saving logic to it as well. 
-# This will be a large undertaking but as your current biggest weakness is that you are stuggling to compare results I think that it will be worth the effort.
+        return results_dict, raw_metric_dict
