@@ -9,6 +9,8 @@ import warnings
 warnings.filterwarnings('ignore')
 
 class ACP_data:
+    snp_tickers_path = r'C:\Users\chris\Documents\Conformal_Prediction\scripts\snptickers.txt'
+
     @staticmethod
     def no_shift(norm_dist: tuple = (0,1), seq_length: int = 2000, data_transformation: Callable = None, datapoints: int = 1) -> list[tuple]:
         """
@@ -163,7 +165,7 @@ class ACP_data:
         '''Returns a list of tuples containing the stock data for the given number of datapoints.'''
 
         # Open the file using the relative path
-        with open( r'C:\Users\tobyw\Documents\ChrisPython\ConformalProject\scripts\snptickers.txt', 'r') as f:
+        with open(ACP_data.snp_tickers_path, 'r') as f:
             all_tickers = f.read().splitlines()
             all_tickers.sort()
 
@@ -238,23 +240,26 @@ class ACP_data:
         return (time_series_normal[:-1], model_variance_array[1:], time_series_normal[1:])
 
     @staticmethod
-    def create_hetroskedatic_cheb_data(length: int, model_error: float = 0.1, var_range: tuple = (0.5, 2)) -> tuple:
-        '''Model error roughly corresponds to percentage uncertainty in the model.'''  
+    def create_hetroskedatic_var_data(length: int, model_error: float = 0.1, var_range: tuple = (0.5, 2)) -> tuple:
+            '''Model error = 0.05, means the model is at most 5% wrong in either direction and uniformly between.'''  
 
-        # We will simulate a random walk for the variance. Might do a exponenital random walk as 
-        # then no issues with negative values.
+            # Exponetial random walk of variances.
 
-        exp_random_walk = np.random.normal(0, 0.1, length)
-        true_variance_array = np.exp(np.cumsum(exp_random_walk))
+            exp_random_walk = np.random.normal(0, 0.1, length)
+            true_variance_array = np.exp(np.cumsum(exp_random_walk))
 
-        corresponding_normal = np.random.normal(0, true_variance_array, length)
+            corresponding_normal = np.random.normal(0, true_variance_array, length)
 
-        model_variance_array = true_variance_array + (true_variance_array * np.random.uniform(model_error, 2-model_error, length))
-        time_series_normal = np.cumsum(corresponding_normal)
+            # Simulating the model error. 
+            model_tolerence = model_error * true_variance_array
+            distribution_arround_true = np.random.uniform(-1, 1, length) * model_tolerence
+            model_variance_array = true_variance_array + distribution_arround_true
 
-        # Now we need to return as xpred, varpred, y
+            time_series_normal = np.cumsum(corresponding_normal)
 
-        return (time_series_normal[:-1], model_variance_array[1:], time_series_normal[1:])
+            # Now we need to return as xpred, varpred, y
+
+            return (time_series_normal[:-1], model_variance_array[1:], time_series_normal[1:])
 
     @staticmethod
     def xvy_from_y(series, lookback: int = -1):

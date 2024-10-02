@@ -14,9 +14,22 @@ class AdaptiveCP:
         
         self.interval_size = interval_size
 
-        self.score_function = score_function if score_function is not None else lambda xpred, y: (abs(y - xpred))/abs(xpred)
-        self.neg_inverse_score = neg_inverse_score if neg_inverse_score is not None else lambda x_t, Q: (x_t) - (abs(x_t) * Q)
-        self.pos_inverse_score = pos_inverse_score if pos_inverse_score is not None else lambda x_t, Q: (x_t) + (abs(x_t) * Q)
+        self.score_function = score_function if score_function is not None else AdaptiveCP.score_function
+        self.neg_inverse_score = neg_inverse_score if neg_inverse_score is not None else AdaptiveCP.neg_inverse_score
+        self.pos_inverse_score = pos_inverse_score if pos_inverse_score is not None else AdaptiveCP.pos_inverse_score
+    
+    # To allow for multiprocessing.
+    @staticmethod
+    def score_function(xpred, y):
+        return (abs(y - xpred))/abs(xpred)
+
+    @staticmethod
+    def pos_inverse_score(x_t, Q):
+        return x_t + (abs(x_t) * Q)
+    
+    @staticmethod
+    def neg_inverse_score(x_t, Q):
+        return x_t - (abs(x_t) * Q)
 
     def C_t(self, alpha_t, scores, x_t, t, custom_interval = None):
         '''Calculates the coverage set at time t.
@@ -735,7 +748,7 @@ class AdaptiveCP:
 
         return sum(loss_list)
 
-    def HACI(self, timeseries_with_var_data: tuple, gamma: float = 0.05, custom_interval = None, title: str = None, startpoint: int = None) -> dict:
+    def HACI(self, timeseries_with_var_data: tuple, gamma: float = 0.005, custom_interval = None, title: str = None, startpoint: int = None) -> dict:
         ''' Implementation of Henry's Adaptive Conformal Prediction method.'''
         xpred, varpred, y = timeseries_with_var_data
 
@@ -921,9 +934,14 @@ class AdaptiveCP:
             if y[i] > xpred[i]: # Over prediction corresponds to the upperbound.
                 new_alpha_t = min(max(alpha_t_dict['upper'][-1] + (gamma * (self.coverage_target - error_t)), 0), 1)
                 alpha_t_dict['upper'].append(new_alpha_t)
+
+                # Also adding the last lower to the lower dict.
+                alpha_t_dict['lower'].append(alpha_t_dict['lower'][-1])
             else:
                 new_alpha_t = min(max(alpha_t_dict['lower'][-1] + (gamma * (self.coverage_target - error_t)), 0), 1)
                 alpha_t_dict['lower'].append(new_alpha_t)
+
+                alpha_t_dict['upper'].append(alpha_t_dict['upper'][-1])
 
         # Calculating different metrics.
         realised_interval_coverage = 1 - pd.Series(err_t_list).rolling(self.interval_size).mean().mean()
@@ -936,7 +954,7 @@ class AdaptiveCP:
             'realised_interval_coverage': realised_interval_coverage,
             'alpha_t_list': alpha_t_dict['upper'], # This is a legacy artefact.
             'alpha_t_dict': alpha_t_dict,
-            'average_prediction_interval': average_prediction_interval,
+            'alpha_t_dict_with_time': alpha_t_dict,
             'conformal_sets': conformal_sets_list,
             'error_t_list': err_t_list, 
             'interval_size': self.interval_size,
